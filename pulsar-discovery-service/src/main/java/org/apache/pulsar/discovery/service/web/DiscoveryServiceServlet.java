@@ -181,7 +181,7 @@ public class DiscoveryServiceServlet extends HttpServlet {
     }
 
     public MetadataStoreExtended createLocalMetadataStore(String zookeeperServers, int operationimeoutMs) throws MetadataStoreException {
-        return PulsarResources.createMetadataStore(zookeeperServers, operationimeoutMs);
+        return PulsarResources.createLocalMetadataStore(zookeeperServers, operationimeoutMs);
     }
 
     private static final Logger log = LoggerFactory.getLogger(DiscoveryServiceServlet.class);

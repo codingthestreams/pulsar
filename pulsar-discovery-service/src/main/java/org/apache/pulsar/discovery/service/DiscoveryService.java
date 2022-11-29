@@ -213,11 +213,12 @@ public class DiscoveryService implements Closeable {
     }
 
     public MetadataStoreExtended createLocalMetadataStore() throws MetadataStoreException {
-        return PulsarResources.createMetadataStore(config.getZookeeperServers(), config.getZookeeperSessionTimeoutMs());
+        return PulsarResources.createLocalMetadataStore(config.getZookeeperServers(),
+                config.getZookeeperSessionTimeoutMs());
     }
 
     public MetadataStoreExtended createConfigurationMetadataStore() throws MetadataStoreException {
-        return PulsarResources.createMetadataStore(config.getConfigurationStoreServers(),
+        return PulsarResources.createConfigMetadataStore(config.getConfigurationStoreServers(),
                 config.getZookeeperSessionTimeoutMs());
     }
 
