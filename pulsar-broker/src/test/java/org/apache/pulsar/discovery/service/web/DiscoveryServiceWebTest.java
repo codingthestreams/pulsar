@@ -75,7 +75,7 @@ public class DiscoveryServiceWebTest extends ProducerConsumerBase {
         server = new ServerManager(config);
         Map<String, String> params = new TreeMap<>();
         String zkServerUrl = "mockZkServerUrl";
-        metadataStoreInstanceCache.put(zkServerUrl, pulsar.createLocalMetadataStore());
+        metadataStoreInstanceCache.put(zkServerUrl, pulsar.createLocalMetadataStore(null));
         params.put("zookeeperServers", zkServerUrl);
         server.addServlet("/", DiscoveryServiceServletTest.class, params);
         server.start();
