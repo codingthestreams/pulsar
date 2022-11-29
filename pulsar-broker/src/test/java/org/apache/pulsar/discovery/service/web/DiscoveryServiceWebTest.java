@@ -30,6 +30,7 @@ import com.google.gson.JsonParseException;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.ws.rs.HttpMethod;
 import javax.ws.rs.client.Client;
@@ -58,7 +59,7 @@ public class DiscoveryServiceWebTest extends ProducerConsumerBase {
     private final Client client = ClientBuilder.newClient(new ClientConfig().register(LoggingFeature.class));
     // DiscoveryServiceServlet gets initialized by a server and this map will help to retrieve ZK while mocking
     // DiscoveryServiceServlet
-    private static final Map<String, MetadataStoreExtended> metadataStoreInstanceCache = Maps.newConcurrentMap();
+    private static final Map<String, MetadataStoreExtended> metadataStoreInstanceCache = new ConcurrentHashMap<>();
     private ServerManager server;
 
     @BeforeMethod
