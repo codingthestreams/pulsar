@@ -103,7 +103,9 @@ public class ServerConnection extends PulsarHandler {
                 return;
             }
         }
-        ctx.writeAndFlush(Commands.newConnected(connect.getProtocolVersion()));
+
+        // TODO how should we integrate with the supportsTopicWatchers feature?
+        ctx.writeAndFlush(Commands.newConnected(connect.getProtocolVersion(), false));
         state = State.Connected;
         setRemoteEndpointProtocolVersion(connect.getProtocolVersion());
     }
