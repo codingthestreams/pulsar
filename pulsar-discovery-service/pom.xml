@@ -117,6 +117,8 @@
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>jul-to-slf4j</artifactId>
+<!--      FIX ME: I was removed in some later commit. Hard coding a version to get things working. -->
+      <version>1.7.25</version>
     </dependency>
 
     <dependency>
