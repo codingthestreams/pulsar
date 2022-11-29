@@ -92,7 +92,8 @@ public class ServerConnection extends PulsarHandler {
                 }
                 this.authenticationData = new AuthenticationDataCommand(authData, remoteAddress, sslSession);
                 authRole = service.getAuthenticationService()
-                        .authenticate(this.authenticationData, authMethod);
+                        .getAuthenticationProvider(authMethod)
+                        .authenticate(this.authenticationData);
                 LOG.info("[{}] Client successfully authenticated with {} role {}", remoteAddress, authMethod, authRole);
             } catch (AuthenticationException e) {
                 String msg = "Unable to authenticate";
