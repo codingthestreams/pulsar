@@ -26,8 +26,7 @@ import java.util.Optional;
 import javax.servlet.Servlet;
 import org.apache.pulsar.broker.web.JettyRequestLogFactory;
 import org.apache.pulsar.common.util.RestException;
-import org.apache.pulsar.common.util.SecurityUtility;
-import org.apache.pulsar.common.util.keystoretls.KeyStoreSSLContext;
+import org.apache.pulsar.jetty.tls.JettySslContextFactory;
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
@@ -73,7 +72,7 @@ public class ServerManager {
             try {
                 SslContextFactory sslCtxFactory;
                 if (config.isTlsEnabledWithKeyStore()) {
-                    sslCtxFactory = KeyStoreSSLContext.createSslContextFactory(
+                    sslCtxFactory = JettySslContextFactory.createServerSslContextWithKeystore(
                             config.getTlsProvider(),
                             config.getTlsKeyStoreType(),
                             config.getTlsKeyStore(),
@@ -83,16 +82,20 @@ public class ServerManager {
                             config.getTlsTrustStore(),
                             config.getTlsTrustStorePassword(),
                             config.isTlsRequireTrustedClientCertOnConnect(),
+                            config.getTlsCiphers(),
+                            config.getTlsProtocols(),
                             config.getTlsCertRefreshCheckDurationSec()
                     );
                 } else {
-                    sslCtxFactory = SecurityUtility.createSslContextFactory(
+                    sslCtxFactory = JettySslContextFactory.createServerSslContext(
+                            config.getTlsProvider(),
                             config.isTlsAllowInsecureConnection(),
                             config.getTlsTrustCertsFilePath(),
                             config.getTlsCertificateFilePath(),
                             config.getTlsKeyFilePath(),
                             config.isTlsRequireTrustedClientCertOnConnect(),
-                            true,
+                            config.getTlsCiphers(),
+                            config.getTlsProtocols(),
                             config.getTlsCertRefreshCheckDurationSec());
                 }
                 connectorTls = new ServerConnector(server, 1, 1, sslCtxFactory);
