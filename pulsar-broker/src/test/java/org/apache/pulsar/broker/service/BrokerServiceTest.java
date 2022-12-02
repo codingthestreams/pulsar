@@ -27,6 +27,7 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertSame;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 import com.google.common.collect.Sets;
@@ -1519,5 +1520,20 @@ public class BrokerServiceTest extends BrokerTestBase {
         Awaitility.await().untilAsserted(()->{
             assertTrue(conf.isForceDeleteTenantAllowed());
         });
+    }
+
+    @Test
+    public void testAssignTopic() {
+        final TopicName topic1 = TopicName.get("prop/ns-test/topic-1");
+        final TopicName topic2 = TopicName.get("prop/ns-test/topic-2");
+        final BrokerService broker = pulsar.getBrokerService();
+
+        final CompletableFuture<Void> future1 = broker.assignTopicAsync(topic1);
+        final CompletableFuture<Void> future2 =  broker.assignTopicAsync(topic2);
+
+        assertTrue(broker.getAssignedTopics().containsKey(topic1));
+        assertTrue(broker.getAssignedTopics().containsKey(topic2));
+        assertSame(broker.assignTopicAsync(topic1), future1);
+        assertSame(broker.assignTopicAsync(topic2), future2);
     }
 }

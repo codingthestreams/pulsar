@@ -283,6 +283,9 @@ public class BrokerService implements Closeable {
     private Set<BrokerEntryMetadataInterceptor> brokerEntryMetadataInterceptors;
     private Set<ManagedLedgerPayloadProcessor> brokerEntryPayloadProcessors;
 
+    @Getter
+    private final ConcurrentOpenHashMap<TopicName, CompletableFuture<Void>> assignedTopics;
+
     public BrokerService(PulsarService pulsar, EventLoopGroup eventLoopGroup) throws Exception {
         this.pulsar = pulsar;
         this.preciseTopicPublishRateLimitingEnable =
@@ -400,6 +403,7 @@ public class BrokerService implements Closeable {
                         .getBrokerEntryPayloadProcessors(), BrokerService.class.getClassLoader());
 
         this.bundlesQuotas = new BundlesQuotas(pulsar.getLocalMetadataStore());
+        this.assignedTopics = ConcurrentOpenHashMap.<TopicName, CompletableFuture<Void>>newBuilder().build();
     }
 
     // This call is used for starting additional protocol handlers
@@ -3354,6 +3358,17 @@ public class BrokerService implements Closeable {
 
     public long getPausedConnections() {
         return pausedConnections.longValue();
+    }
+
+    /**
+     * Experimental method to push topic assignments to a broker.
+     * @param topicName topic to be assigned
+     * @return a future that completes when the topic assignment flow completes
+     */
+    public CompletableFuture<Void> assignTopicAsync(TopicName topicName) {
+        return assignedTopics.computeIfAbsent(topicName, __ ->
+                // TODO: complete the topic assignment flow
+                CompletableFuture.completedFuture(null));
     }
 
     @SuppressWarnings("unchecked")
