@@ -1846,4 +1846,8 @@ public class PulsarService implements AutoCloseable, ShutdownService {
     protected BrokerService newBrokerService(PulsarService pulsar) throws Exception {
         return new BrokerService(pulsar, ioEventLoopGroup);
     }
+
+    public boolean isPulsarNgEnabled() {
+        return config.isPulsarNgEnabled();
+    }
 }

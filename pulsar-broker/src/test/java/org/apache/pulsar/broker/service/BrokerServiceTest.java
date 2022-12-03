@@ -106,6 +106,7 @@ import org.apache.pulsar.common.policies.data.LocalPolicies;
 import org.apache.pulsar.common.policies.data.SubscriptionStats;
 import org.apache.pulsar.common.policies.data.TopicStats;
 import org.apache.pulsar.common.protocol.Commands;
+import org.apache.pulsar.common.util.FutureUtil;
 import org.apache.pulsar.common.util.netty.EventLoopUtil;
 import org.awaitility.Awaitility;
 import org.testng.Assert;
@@ -1523,17 +1524,39 @@ public class BrokerServiceTest extends BrokerTestBase {
     }
 
     @Test
-    public void testAssignTopic() {
-        final TopicName topic1 = TopicName.get("prop/ns-test/topic-1");
-        final TopicName topic2 = TopicName.get("prop/ns-test/topic-2");
+    public void testAssignTopic() throws PulsarClientException {
+        final String topic1 = "prop/ns-test/topic-1";
+        final String topic2 = "prop/ns-test/topic-2";
         final BrokerService broker = pulsar.getBrokerService();
 
-        final CompletableFuture<Void> future1 = broker.assignTopicAsync(topic1);
-        final CompletableFuture<Void> future2 =  broker.assignTopicAsync(topic2);
+        conf.setPulsarNgEnabled(true);
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        futures.add(broker.assignTopicAsync(topic1));
+        futures.add(broker.assignTopicAsync(topic2));
+        FutureUtil.waitForAll(futures);
 
-        assertTrue(broker.getAssignedTopics().containsKey(topic1));
-        assertTrue(broker.getAssignedTopics().containsKey(topic2));
-        assertSame(broker.assignTopicAsync(topic1), future1);
-        assertSame(broker.assignTopicAsync(topic2), future2);
+        final TopicName topicNam1 = TopicName.get(topic1);
+        final TopicName topicName2 = TopicName.get(topic2);
+
+        assertTrue(broker.getAssignedTopics().containsKey(topicNam1));
+        assertTrue(broker.getAssignedTopics().containsKey(topicName2));
+        assertSame(broker.assignTopicAsync(topic1), futures.get(0));
+        assertSame(broker.assignTopicAsync(topic2), futures.get(1));
+
+        final String subscriptionName = "s1";
+
+        @Cleanup
+        Producer<byte[]> producer = pulsarClient.newProducer().topic("persistent://prop/ns-test/topic-1").create();
+
+        @Cleanup
+        Consumer<byte[]> consumer = pulsarClient.newConsumer().topic(topic1)
+                .subscriptionName(subscriptionName)
+                .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
+                .subscribe();
+
+        producer.send("msg".getBytes(StandardCharsets.UTF_8));
+        Message msg = consumer.receive();
+        assertEquals(msg.getData(), "msg".getBytes(StandardCharsets.UTF_8));
+        consumer.acknowledge(msg);
     }
 }

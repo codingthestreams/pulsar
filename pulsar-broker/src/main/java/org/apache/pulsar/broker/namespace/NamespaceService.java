@@ -48,6 +48,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.http.client.RedirectException;
 import org.apache.pulsar.broker.PulsarServerException;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.ServiceConfiguration;
@@ -173,6 +174,25 @@ public class NamespaceService implements AutoCloseable {
 
     public CompletableFuture<Optional<LookupResult>> getBrokerServiceUrlAsync(TopicName topic, LookupOptions options) {
         long startTime = System.nanoTime();
+
+        if (pulsar.isPulsarNgEnabled()) {
+            if (pulsar.getBrokerService().isAssignedTopic(topic)) {
+                String brokerUrl =  pulsar.getBrokerServiceUrl();
+                String brokerUrlTls =  pulsar.getBrokerServiceUrlTls();
+                String httpUrl =  pulsar.getWebServiceAddress();
+                String httpUrlTls =  pulsar.getWebServiceAddressTls();
+
+                NamespaceEphemeralData nsData =
+                        new NamespaceEphemeralData(brokerUrl, brokerUrlTls, httpUrl, httpUrlTls, false);
+
+                return CompletableFuture.completedFuture(
+                        Optional.of(new LookupResult(nsData,
+                        brokerUrl,
+                        brokerUrlTls)));
+            } else {
+                return CompletableFuture.failedFuture(new RedirectException("Trying another broker!"));
+            }
+        }
 
         CompletableFuture<Optional<LookupResult>> future = getBundleAsync(topic)
                 .thenCompose(bundle -> findBrokerServiceUrl(bundle, options));
@@ -1045,6 +1065,9 @@ public class NamespaceService implements AutoCloseable {
     }
 
     public CompletableFuture<Boolean> isServiceUnitActiveAsync(TopicName topicName) {
+        if (pulsar.isPulsarNgEnabled()) {
+            return CompletableFuture.completedFuture(true);
+        }
         Optional<CompletableFuture<OwnedBundle>> res = ownershipCache.getOwnedBundleAsync(getBundle(topicName));
         if (!res.isPresent()) {
             return CompletableFuture.completedFuture(false);
@@ -1067,6 +1090,9 @@ public class NamespaceService implements AutoCloseable {
     }
 
     public CompletableFuture<Boolean> checkTopicOwnership(TopicName topicName) {
+        if (pulsar.isPulsarNgEnabled()) {
+            return CompletableFuture.completedFuture(pulsar.getBrokerService().isAssignedTopic(topicName));
+        }
         return getBundleAsync(topicName)
                 .thenCompose(ownershipCache::checkOwnershipAsync);
     }

@@ -24,6 +24,7 @@ import static org.apache.bookkeeper.mledger.util.SafeRun.safeRun;
 import static org.apache.commons.collections4.CollectionUtils.isEmpty;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 import static org.apache.pulsar.common.naming.SystemTopicNames.isTransactionInternalName;
+import static org.apache.pulsar.common.policies.data.PoliciesUtil.getBundles;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Queues;
 import io.netty.bootstrap.ServerBootstrap;
@@ -1167,6 +1168,25 @@ public class BrokerService implements Closeable {
         });
     }
 
+    /**
+     * Ported from org.apache.pulsar.broker.admin.v2.Namespaces#getDefaultPolicesIfNull.
+     * @param policies
+     * @return
+     */
+    private Policies getDefaultPolicesIfNull(Policies policies) {
+        if (policies == null) {
+            policies = new Policies();
+        }
+
+        int defaultNumberOfBundles = pulsar().getConfiguration().getDefaultNumberOfNamespaceBundles();
+
+        if (policies.bundles == null) {
+            policies.bundles = getBundles(defaultNumberOfBundles);
+        }
+
+        return policies;
+    }
+
     private CompletableFuture<Optional<Topic>> createNonPersistentTopic(String topic) {
         CompletableFuture<Optional<Topic>> topicFuture = new CompletableFuture<>();
         if (!pulsar.getConfiguration().isEnableNonPersistentTopics()) {
@@ -1407,7 +1427,7 @@ public class BrokerService implements Closeable {
      * @return CompletableFuture<Topic>
      * @throws RuntimeException
      */
-    protected CompletableFuture<Optional<Topic>> loadOrCreatePersistentTopic(final String topic,
+    protected CompletableFuture<Optional<Topic>> pulsar-broker/src/test/java/org/apache/pulsar/broker/service/BrokerServiceTest.java(final String topic,
             boolean createIfMissing, Map<String, String> properties) throws RuntimeException {
         final CompletableFuture<Optional<Topic>> topicFuture = FutureUtil.createFutureWithTimeout(
                 Duration.ofSeconds(pulsar.getConfiguration().getTopicLoadTimeoutSeconds()), executor(),
@@ -3362,13 +3382,28 @@ public class BrokerService implements Closeable {
 
     /**
      * Experimental method to push topic assignments to a broker.
-     * @param topicName topic to be assigned
+     * @param topic fully qualified topic name
      * @return a future that completes when the topic assignment flow completes
      */
-    public CompletableFuture<Void> assignTopicAsync(TopicName topicName) {
-        return assignedTopics.computeIfAbsent(topicName, __ ->
-                // TODO: complete the topic assignment flow
-                CompletableFuture.completedFuture(null));
+    public CompletableFuture<Void> assignTopicAsync(String topic) {
+        checkArgument(pulsar.getConfiguration().isPulsarNgEnabled(), "Pulsar NG is disabled!");
+        TopicName topicName = TopicName.get(topic);
+        return assignedTopics.computeIfAbsent(topicName, __ -> {
+            // TODO: complete the topic assignment flow
+            NamespaceName namespaceName = TopicName.get(topic).getNamespaceObject();
+            // TODO: Handle ns policies in PuslarNG
+            Policies policies = getDefaultPolicesIfNull(null);
+            // Give the skeleton crutches! Set replication cluster to "test"
+            policies.replication_clusters.add("test");
+            return pulsar.getPulsarResources().
+                    getNamespaceResources().
+                    createPoliciesAsync(namespaceName, policies);
+        });
+    }
+
+    public boolean isAssignedTopic(TopicName topicName) {
+        checkArgument(pulsar.getConfiguration().isPulsarNgEnabled(), "Pulsar NG is disabled!");
+        return this.assignedTopics.containsKey(topicName);
     }
 
     @SuppressWarnings("unchecked")

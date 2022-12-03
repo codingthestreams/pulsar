@@ -3130,6 +3130,11 @@ public class ServiceConfiguration implements PulsarConfiguration {
         return subscriptionKeySharedEnable && subscriptionTypesEnabled.contains("Key_Shared");
     }
 
+    @FieldContext(category = CATEGORY_SERVER,
+            doc = "Enables Pulsar NG. Defaults to false"
+    )
+    private boolean pulsarNgEnabled;
+
     public String getMetadataStoreUrl() {
         if (StringUtils.isNotBlank(metadataStoreUrl)) {
             return metadataStoreUrl;
