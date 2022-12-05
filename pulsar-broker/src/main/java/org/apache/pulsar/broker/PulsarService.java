@@ -734,7 +734,7 @@ public class PulsarService implements AutoCloseable, ShutdownService {
                 shouldShutdownConfigurationMetadataStore = false;
             }
             pulsarResources = new PulsarResources(localMetadataStore, configurationMetadataStore,
-                    config.getMetadataStoreOperationTimeoutSeconds());
+                    config.getMetadataStoreOperationTimeoutSeconds(), config.isPulsarNgEnabled());
 
             pulsarResources.getClusterResources().getStore().registerListener(this::handleDeleteCluster);
 

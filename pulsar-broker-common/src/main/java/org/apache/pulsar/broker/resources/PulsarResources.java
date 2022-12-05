@@ -53,14 +53,19 @@ public class PulsarResources {
     private final Optional<MetadataStore> configurationMetadataStore;
 
     public PulsarResources(MetadataStore localMetadataStore, MetadataStore configurationMetadataStore) {
-        this(localMetadataStore, configurationMetadataStore, DEFAULT_OPERATION_TIMEOUT_SEC);
+        this(localMetadataStore, configurationMetadataStore, DEFAULT_OPERATION_TIMEOUT_SEC, false);
     }
     public PulsarResources(MetadataStore localMetadataStore, MetadataStore configurationMetadataStore,
-            int operationTimeoutSec) {
+                           int operationTimeoutSec) {
+        this(localMetadataStore, configurationMetadataStore, operationTimeoutSec, false);
+    }
+    public PulsarResources(MetadataStore localMetadataStore, MetadataStore configurationMetadataStore,
+            int operationTimeoutSec, boolean pulsarNgEnabled) {
         if (configurationMetadataStore != null) {
             tenantResources = new TenantResources(configurationMetadataStore, operationTimeoutSec);
             clusterResources = new ClusterResources(configurationMetadataStore, operationTimeoutSec);
-            namespaceResources = new NamespaceResources(configurationMetadataStore, operationTimeoutSec);
+            namespaceResources = new NamespaceResources(configurationMetadataStore, operationTimeoutSec,
+                    pulsarNgEnabled);
             resourcegroupResources = new ResourceGroupResources(configurationMetadataStore, operationTimeoutSec);
         } else {
             tenantResources = null;

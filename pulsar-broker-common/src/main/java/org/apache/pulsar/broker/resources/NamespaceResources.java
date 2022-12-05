@@ -37,6 +37,7 @@ import org.apache.pulsar.common.policies.data.NamespaceIsolationDataImpl;
 import org.apache.pulsar.common.policies.data.Policies;
 import org.apache.pulsar.common.policies.impl.NamespaceIsolationPolicies;
 import org.apache.pulsar.common.util.Codec;
+import org.apache.pulsar.common.util.collections.ConcurrentOpenHashMap;
 import org.apache.pulsar.metadata.api.MetadataStore;
 import org.apache.pulsar.metadata.api.MetadataStoreException;
 import org.slf4j.Logger;
@@ -49,14 +50,23 @@ public class NamespaceResources extends BaseResources<Policies> {
     private final IsolationPolicyResources isolationPolicies;
     private final PartitionedTopicResources partitionedTopicResources;
     private final MetadataStore configurationStore;
+    private final ConcurrentOpenHashMap<NamespaceName, Policies> namespacePolicies =
+            ConcurrentOpenHashMap.<NamespaceName, Policies>newBuilder().build();
+    private final boolean pulsarNgEnabled;
 
     private static final String POLICIES_READONLY_FLAG_PATH = "/admin/flags/policies-readonly";
     private static final String NAMESPACE_BASE_PATH = "/namespace";
     private static final String BUNDLE_DATA_BASE_PATH = "/loadbalance/bundle-data";
 
+
     public NamespaceResources(MetadataStore configurationStore, int operationTimeoutSec) {
+        this(configurationStore, operationTimeoutSec, false);
+    }
+
+    public NamespaceResources(MetadataStore configurationStore, int operationTimeoutSec, boolean pulsarNgEnabled) {
         super(configurationStore, Policies.class, operationTimeoutSec);
         this.configurationStore = configurationStore;
+        this.pulsarNgEnabled = pulsarNgEnabled;
         isolationPolicies = new IsolationPolicyResources(configurationStore, operationTimeoutSec);
         partitionedTopicResources = new PartitionedTopicResources(configurationStore, operationTimeoutSec);
     }
@@ -81,16 +91,29 @@ public class NamespaceResources extends BaseResources<Policies> {
     }
 
     public void createPolicies(NamespaceName ns, Policies policies) throws MetadataStoreException{
-        create(joinPath(BASE_POLICIES_PATH, ns.toString()), policies);
+        if (this.pulsarNgEnabled) {
+            this.namespacePolicies.put(ns, policies);
+        } else {
+            create(joinPath(BASE_POLICIES_PATH, ns.toString()), policies);
+        }
     }
 
     public CompletableFuture<Void> createPoliciesAsync(NamespaceName ns, Policies policies) {
-        return createAsync(joinPath(BASE_POLICIES_PATH, ns.toString()), policies);
+        if (this.pulsarNgEnabled) {
+            this.namespacePolicies.put(ns, policies);
+            return CompletableFuture.completedFuture(null);
+        } else {
+            return createAsync(joinPath(BASE_POLICIES_PATH, ns.toString()), policies);
+        }
     }
 
     public boolean namespaceExists(NamespaceName ns) throws MetadataStoreException {
-        String path = joinPath(BASE_POLICIES_PATH, ns.toString());
-        return super.exists(path) && super.getChildren(path).isEmpty();
+        if (this.pulsarNgEnabled) {
+            return this.namespacePolicies.containsKey(ns);
+        } else {
+            String path = joinPath(BASE_POLICIES_PATH, ns.toString());
+            return super.exists(path) && super.getChildren(path).isEmpty();
+        }
     }
 
     public CompletableFuture<Boolean> namespaceExistsAsync(NamespaceName ns) {
@@ -122,7 +145,13 @@ public class NamespaceResources extends BaseResources<Policies> {
     }
 
     public CompletableFuture<Optional<Policies>> getPoliciesAsync(NamespaceName ns) {
-        return getCache().get(joinPath(BASE_POLICIES_PATH, ns.toString()));
+        if (this.pulsarNgEnabled) {
+            Policies found = this.namespacePolicies.get(ns);
+            Optional<Policies> policies = found == null ? Optional.empty() : Optional.of(found);
+            return CompletableFuture.completedFuture(policies);
+        } else {
+            return getCache().get(joinPath(BASE_POLICIES_PATH, ns.toString()));
+        }
     }
 
     public void setPolicies(NamespaceName ns, Function<Policies, Policies> function) throws MetadataStoreException {
@@ -130,7 +159,19 @@ public class NamespaceResources extends BaseResources<Policies> {
     }
 
     public CompletableFuture<Void> setPoliciesAsync(NamespaceName ns, Function<Policies, Policies> function) {
-        return setAsync(joinPath(BASE_POLICIES_PATH, ns.toString()), function);
+        //TODO: Handle atomicity
+        if (pulsarNgEnabled) {
+            CompletableFuture<Void> future = new CompletableFuture<>();
+            if (!namespacePolicies.containsKey(ns)) {
+                future.completeExceptionally(new MetadataStoreException.NotFoundException(""));
+            } else {
+                namespacePolicies.put(ns, function.apply(namespacePolicies.get(ns)));
+                future.complete(null);
+            }
+            return future;
+        } else {
+            return setAsync(joinPath(BASE_POLICIES_PATH, ns.toString()), function);
+        }
     }
 
     public static boolean pathIsFromNamespace(String path) {

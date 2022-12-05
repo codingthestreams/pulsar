@@ -1524,12 +1524,12 @@ public class BrokerServiceTest extends BrokerTestBase {
     }
 
     @Test
-    public void testAssignTopic() throws PulsarClientException {
+    public void testAssignTopic() throws Exception {
+        preparePulsarNgCluster();
         final String topic1 = "prop/ns-test/topic-1";
         final String topic2 = "prop/ns-test/topic-2";
         final BrokerService broker = pulsar.getBrokerService();
 
-        conf.setPulsarNgEnabled(true);
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         futures.add(broker.assignTopicAsync(topic1));
         futures.add(broker.assignTopicAsync(topic2));
@@ -1558,5 +1558,13 @@ public class BrokerServiceTest extends BrokerTestBase {
         Message msg = consumer.receive();
         assertEquals(msg.getData(), "msg".getBytes(StandardCharsets.UTF_8));
         consumer.acknowledge(msg);
+    }
+
+    void preparePulsarNgCluster() throws Exception {
+        this.cleanup();
+        conf.setSystemTopicEnabled(false);
+        conf.setTopicLevelPoliciesEnabled(false);
+        conf.setPulsarNgEnabled(true);
+        super.baseSetup();
     }
 }
