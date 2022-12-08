@@ -3389,12 +3389,11 @@ public class BrokerService implements Closeable {
         checkArgument(pulsar.getConfiguration().isPulsarNgEnabled(), "Pulsar NG is disabled!");
         TopicName topicName = TopicName.get(topic);
         return assignedTopics.computeIfAbsent(topicName, __ -> {
-            // TODO: complete the topic assignment flow
             NamespaceName namespaceName = TopicName.get(topic).getNamespaceObject();
             // TODO: Handle ns policies in PuslarNG
             Policies policies = getDefaultPolicesIfNull(null);
-            // Give the skeleton crutches! Set replication cluster to "test"
-            policies.replication_clusters.add("test");
+            // TODO: Handle replication clusters
+            policies.replication_clusters.add(pulsar().getConfiguration().getClusterName());
             return pulsar.getPulsarResources().
                     getNamespaceResources().
                     createPoliciesAsync(namespaceName, policies);

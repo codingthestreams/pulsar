@@ -54,6 +54,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.naming.AuthenticationException;
@@ -483,21 +484,29 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
             isTopicOperationAllowed(topicName, TopicOperation.LOOKUP, authenticationData, originalAuthData).thenApply(
                     isAuthorized -> {
                 if (isAuthorized) {
-                    lookupTopicAsync(getBrokerService().pulsar(), topicName, authoritative,
+                    Supplier<CompletableFuture<ByteBuf>> topicLookup =
+                            ()-> lookupTopicAsync(getBrokerService().pulsar(), topicName, authoritative,
                             getPrincipal(), getAuthenticationData(),
                             requestId, advertisedListenerName).handle((lookupResponse, ex) -> {
-                                if (ex == null) {
-                                    ctx.writeAndFlush(lookupResponse);
-                                } else {
-                                    // it should never happen
-                                    log.warn("[{}] lookup failed with error {}, {}", remoteAddress, topicName,
-                                            ex.getMessage(), ex);
-                                    ctx.writeAndFlush(newLookupErrorResponse(ServerError.ServiceNotReady,
-                                            ex.getMessage(), requestId));
-                                }
-                                lookupSemaphore.release();
-                                return null;
-                            });
+                        if (ex == null) {
+                            ctx.writeAndFlush(lookupResponse);
+                        } else {
+                            // it should never happen
+                            log.warn("[{}] lookup failed with error {}, {}", remoteAddress, topicName,
+                                    ex.getMessage(), ex);
+                            ctx.writeAndFlush(newLookupErrorResponse(ServerError.ServiceNotReady,
+                                    ex.getMessage(), requestId));
+                        }
+                        lookupSemaphore.release();
+                        return null;
+                    });
+
+                    CompletableFuture<Void> assignTopicFuture = service.getPulsar().isPulsarNgEnabled()
+                            && !service.getPulsar().getNamespaceService().skipSystemTopics(topicName)
+                            ? service.assignTopicAsync(topicName.toString())
+                            : CompletableFuture.completedFuture(null);
+
+                    assignTopicFuture.thenCompose(__ -> topicLookup.get());
                 } else {
                     final String msg = "Client is not authorized to Lookup";
                     log.warn("[{}] {} with role {} on topic {}", remoteAddress, msg, getPrincipal(), topicName);

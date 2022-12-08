@@ -91,11 +91,16 @@ public class NamespaceResources extends BaseResources<Policies> {
     }
 
     public void createPolicies(NamespaceName ns, Policies policies) throws MetadataStoreException{
-        if (this.pulsarNgEnabled) {
+        if (this.pulsarNgEnabled && !skipSystemNamespace(ns)) {
             this.namespacePolicies.put(ns, policies);
         } else {
             create(joinPath(BASE_POLICIES_PATH, ns.toString()), policies);
         }
+    }
+
+    private boolean skipSystemNamespace(NamespaceName ns) {
+        return "public/functions".equals(ns.toString())
+                || "pulsar/system".equals(ns.toString());
     }
 
     public CompletableFuture<Void> createPoliciesAsync(NamespaceName ns, Policies policies) {

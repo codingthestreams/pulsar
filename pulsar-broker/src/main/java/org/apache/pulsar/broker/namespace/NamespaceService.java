@@ -175,7 +175,7 @@ public class NamespaceService implements AutoCloseable {
     public CompletableFuture<Optional<LookupResult>> getBrokerServiceUrlAsync(TopicName topic, LookupOptions options) {
         long startTime = System.nanoTime();
 
-        if (pulsar.isPulsarNgEnabled()) {
+        if (pulsar.isPulsarNgEnabled() && !skipSystemTopics(topic)) {
             if (pulsar.getBrokerService().isAssignedTopic(topic)) {
                 String brokerUrl =  pulsar.getBrokerServiceUrl();
                 String brokerUrlTls =  pulsar.getBrokerServiceUrlTls();
@@ -212,6 +212,15 @@ public class NamespaceService implements AutoCloseable {
         });
 
         return future;
+    }
+
+    private static final Set<String> SYSTEM_TOPICS = Set.of("persistent://public/functions/__change_events",
+            "persistent://public/default/__change_events",
+            "persistent://public/functions/coordinate", "persistent://public/functions/assignments",
+            "persistent://public/functions/metadata");
+
+    public boolean skipSystemTopics(TopicName topicName) {
+        return SYSTEM_TOPICS.contains(topicName.toString());
     }
 
     public CompletableFuture<NamespaceBundle> getBundleAsync(TopicName topic) {
@@ -1065,7 +1074,7 @@ public class NamespaceService implements AutoCloseable {
     }
 
     public CompletableFuture<Boolean> isServiceUnitActiveAsync(TopicName topicName) {
-        if (pulsar.isPulsarNgEnabled()) {
+        if (pulsar.isPulsarNgEnabled() && !skipSystemTopics(topicName)) {
             return CompletableFuture.completedFuture(true);
         }
         Optional<CompletableFuture<OwnedBundle>> res = ownershipCache.getOwnedBundleAsync(getBundle(topicName));
@@ -1090,7 +1099,7 @@ public class NamespaceService implements AutoCloseable {
     }
 
     public CompletableFuture<Boolean> checkTopicOwnership(TopicName topicName) {
-        if (pulsar.isPulsarNgEnabled()) {
+        if (pulsar.isPulsarNgEnabled() && !skipSystemTopics(topicName)) {
             return CompletableFuture.completedFuture(pulsar.getBrokerService().isAssignedTopic(topicName));
         }
         return getBundleAsync(topicName)
