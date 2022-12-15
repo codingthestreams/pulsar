@@ -18,6 +18,7 @@
  */
 package org.apache.pulsar.discovery.service;
 
+import io.netty.channel.ChannelHandler;
 import io.netty.handler.ssl.SslHandler;
 import org.apache.pulsar.common.protocol.Commands;
 import org.apache.pulsar.common.util.NettyServerSslContextBuilder;
@@ -42,6 +43,7 @@ public class ServiceChannelInitializer extends ChannelInitializer<SocketChannel>
     private final boolean tlsEnabledWithKeyStore;
     private SslContextAutoRefreshBuilder<SslContext> sslCtxRefresher;
     private NettySSLContextAutoRefreshBuilder nettySSLContextAutoRefreshBuilder;
+    private final boolean pulsarNgEnabled;
 
     public ServiceChannelInitializer(DiscoveryService discoveryService, ServiceConfig serviceConfig, boolean e)
             throws Exception {
@@ -49,6 +51,7 @@ public class ServiceChannelInitializer extends ChannelInitializer<SocketChannel>
         this.discoveryService = discoveryService;
         this.enableTls = e;
         this.tlsEnabledWithKeyStore = serviceConfig.isTlsEnabledWithKeyStore();
+        this.pulsarNgEnabled = serviceConfig.isPulsarNgEnabled();
         if (this.enableTls) {
             if (tlsEnabledWithKeyStore) {
                 nettySSLContextAutoRefreshBuilder = new NettySSLContextAutoRefreshBuilder(
@@ -91,6 +94,6 @@ public class ServiceChannelInitializer extends ChannelInitializer<SocketChannel>
         }
         ch.pipeline().addLast("frameDecoder", new LengthFieldBasedFrameDecoder(
             Commands.DEFAULT_MAX_MESSAGE_SIZE + Commands.MESSAGE_SIZE_FRAME_PADDING, 0, 4, 0, 4));
-        ch.pipeline().addLast("handler", new ServerConnection(discoveryService));
+        ch.pipeline().addLast("handler", (ChannelHandler) new ServerConnection(discoveryService, this.pulsarNgEnabled));
     }
 }

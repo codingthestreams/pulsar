@@ -22,6 +22,9 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.pulsar.common.api.proto.CommandLookupTopicResponse.LookupType.Redirect;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import javax.naming.AuthenticationException;
@@ -30,6 +33,7 @@ import javax.net.ssl.SSLSession;
 import org.apache.pulsar.broker.PulsarServerException;
 import org.apache.pulsar.broker.authentication.AuthenticationDataCommand;
 import org.apache.pulsar.broker.authentication.AuthenticationDataSource;
+import org.apache.pulsar.common.api.proto.CommandAssignTopicResponse;
 import org.apache.pulsar.common.protocol.Commands;
 import org.apache.pulsar.common.protocol.PulsarHandler;
 import org.apache.pulsar.common.api.proto.CommandConnect;
@@ -37,6 +41,8 @@ import org.apache.pulsar.common.api.proto.CommandLookupTopic;
 import org.apache.pulsar.common.api.proto.CommandPartitionedTopicMetadata;
 import org.apache.pulsar.common.api.proto.ServerError;
 import org.apache.pulsar.common.naming.TopicName;
+import org.apache.pulsar.discovery.service.rsocket.AssignTopicException;
+import org.apache.pulsar.discovery.service.rsocket.BrokerClient;
 import org.apache.pulsar.policies.data.loadbalancer.LoadManagerReport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,16 +60,23 @@ public class ServerConnection extends PulsarHandler {
     private String authRole = null;
     private AuthenticationDataSource authenticationData = null;
     private State state;
+    private boolean pulsarNgEnabled;
+    private Map<Long, CompletableFuture<Void>> topicAssignmentsFutures = new ConcurrentHashMap<>();
+    private BrokerClient brokerClient;
     public static final String TLS_HANDLER = "tls";
 
     enum State {
         Start, Connected
     }
 
-    public ServerConnection(DiscoveryService discoveryService) {
+    public ServerConnection(DiscoveryService discoveryService, boolean pulsarNgEnabled) {
         super(0, TimeUnit.SECONDS); // discovery-service doesn't need to run keepAlive task
         this.service = discoveryService;
         this.state = State.Start;
+        this.pulsarNgEnabled = pulsarNgEnabled;
+        if (pulsarNgEnabled) {
+            this.brokerClient = new BrokerClient(topicAssignmentsFutures);
+        }
     }
 
     /**
@@ -128,7 +141,34 @@ public class ServerConnection extends PulsarHandler {
         if (LOG.isDebugEnabled()) {
             LOG.debug("Received Lookup from {}", remoteAddress);
         }
-        sendLookupResponse(lookup.getRequestId());
+        if (pulsarNgEnabled) {
+            // Assign the topic, then complete the lookup request asynchronously
+            long requestId = lookup.getRequestId();
+            String topic = lookup.getTopic();
+            topicAssignmentsFutures.computeIfAbsent(requestId, k -> {
+                brokerClient.sendCommand(Commands.newAssignTopic(requestId, topic));
+                CompletableFuture<Void> assignTopicFuture = new CompletableFuture<Void>();
+                assignTopicFuture.whenComplete((__, ex) -> {
+                    if (ex != null) {
+                        if (ex instanceof AssignTopicException) {
+                            ctx.writeAndFlush(
+                                    Commands.newLookupErrorResponse(((AssignTopicException) ex).getError(), ex.getMessage(),
+                                            requestId));
+                        } else {
+                            ctx.writeAndFlush(
+                                    Commands.newLookupErrorResponse(ServerError.UnknownError, ex.getMessage(),
+                                            requestId));
+                        }
+                    } else {
+                        sendLookupResponse(requestId);
+                    }
+                    topicAssignmentsFutures.remove(requestId);
+                });
+                return assignTopicFuture;
+            });
+        } else {
+            sendLookupResponse(lookup.getRequestId());
+        }
     }
 
     private void close() {
@@ -174,5 +214,4 @@ public class ServerConnection extends PulsarHandler {
     }
 
     private static final Logger LOG = LoggerFactory.getLogger(ServerConnection.class);
-
 }

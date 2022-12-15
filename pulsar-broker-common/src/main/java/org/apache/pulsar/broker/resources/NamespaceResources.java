@@ -18,6 +18,7 @@
  */
 package org.apache.pulsar.broker.resources;
 
+import static org.apache.pulsar.common.naming.NamespaceName.SYSTEM_NAMESPACE;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import org.apache.pulsar.common.naming.NamespaceName;
@@ -98,13 +100,23 @@ public class NamespaceResources extends BaseResources<Policies> {
         }
     }
 
+    private static final String SLA_NAMESPACE_PROPERTY = "sla-monitor";
+    private static final Pattern SLA_NAMESPACE_PATTERN =
+            Pattern.compile(SLA_NAMESPACE_PROPERTY + "/[^/]+/([^:]+:\\d+)");
+    private static final String HEARTBEAT_NAMESPACE_FMT = "pulsar/%s/%s:%s";
+    private static final String HEARTBEAT_NAMESPACE_FMT_V2 = "pulsar/%s:%s";
+    private static final Pattern HEARTBEAT_NAMESPACE_PATTERN = Pattern.compile("pulsar/[^/]+/([^:]+:\\d+)");
+    private static final Pattern HEARTBEAT_NAMESPACE_PATTERN_V2 = Pattern.compile("pulsar/([^:]+:\\d+)");
     private boolean skipSystemNamespace(NamespaceName ns) {
-        return "public/functions".equals(ns.toString())
-                || "pulsar/system".equals(ns.toString());
+        final String namespaceName = ns.toString();
+        return SYSTEM_NAMESPACE.toString().equals(ns)
+                || SLA_NAMESPACE_PATTERN.matcher(namespaceName).matches()
+                || HEARTBEAT_NAMESPACE_PATTERN.matcher(namespaceName).matches()
+                || HEARTBEAT_NAMESPACE_PATTERN_V2.matcher(namespaceName).matches();
     }
 
     public CompletableFuture<Void> createPoliciesAsync(NamespaceName ns, Policies policies) {
-        if (this.pulsarNgEnabled) {
+        if (this.pulsarNgEnabled && !skipSystemNamespace(ns)) {
             this.namespacePolicies.put(ns, policies);
             return CompletableFuture.completedFuture(null);
         } else {
@@ -113,7 +125,7 @@ public class NamespaceResources extends BaseResources<Policies> {
     }
 
     public boolean namespaceExists(NamespaceName ns) throws MetadataStoreException {
-        if (this.pulsarNgEnabled) {
+        if (this.pulsarNgEnabled && !skipSystemNamespace(ns)) {
             return this.namespacePolicies.containsKey(ns);
         } else {
             String path = joinPath(BASE_POLICIES_PATH, ns.toString());
@@ -150,7 +162,7 @@ public class NamespaceResources extends BaseResources<Policies> {
     }
 
     public CompletableFuture<Optional<Policies>> getPoliciesAsync(NamespaceName ns) {
-        if (this.pulsarNgEnabled) {
+        if (this.pulsarNgEnabled && !skipSystemNamespace(ns)) {
             Policies found = this.namespacePolicies.get(ns);
             Optional<Policies> policies = found == null ? Optional.empty() : Optional.of(found);
             return CompletableFuture.completedFuture(policies);

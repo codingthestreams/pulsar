@@ -83,6 +83,7 @@ import org.apache.pulsar.common.naming.NamespaceBundleSplitAlgorithm;
 import org.apache.pulsar.common.naming.NamespaceBundles;
 import org.apache.pulsar.common.naming.NamespaceName;
 import org.apache.pulsar.common.naming.ServiceUnitId;
+import org.apache.pulsar.common.naming.SystemTopicNames;
 import org.apache.pulsar.common.naming.TopicDomain;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.policies.NamespaceIsolationPolicy;
@@ -214,13 +215,11 @@ public class NamespaceService implements AutoCloseable {
         return future;
     }
 
-    private static final Set<String> SYSTEM_TOPICS = Set.of("persistent://public/functions/__change_events",
-            "persistent://public/default/__change_events",
-            "persistent://public/functions/coordinate", "persistent://public/functions/assignments",
-            "persistent://public/functions/metadata");
-
     public boolean skipSystemTopics(TopicName topicName) {
-        return SYSTEM_TOPICS.contains(topicName.toString());
+        return SystemTopicNames.isSystemTopic(topicName)
+                || topicName.toString().endsWith("functions/metadata")
+                || topicName.toString().endsWith("functions/assignments")
+                || topicName.toString().endsWith("functions/coordinate");
     }
 
     public CompletableFuture<NamespaceBundle> getBundleAsync(TopicName topic) {

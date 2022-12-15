@@ -462,6 +462,17 @@ message CommandLookupTopicResponse {
     optional bool proxy_through_service_url = 8 [default = false];
 }
 
+message CommandAssignTopic {
+    required string topic            = 1;
+    required uint64 request_id       = 2;
+}
+
+message CommandAssignTopicResponse {
+    required uint64 request_id            = 1;
+    optional ServerError error            = 2;
+    optional string message               = 3;
+}
+
 /// Create a new Producer on a topic, assigning the given producer_id,
 /// all messages sent with this producer_id will be persisted on the topic
 message CommandProducer {
@@ -630,7 +641,7 @@ message CommandTopicMigrated {
     required ResourceType resource_type = 2;
     optional string brokerServiceUrl      = 3;
     optional string brokerServiceUrlTls   = 4;
-    
+
 }
 
 
@@ -1013,6 +1024,9 @@ message BaseCommand {
         GET_OR_CREATE_SCHEMA = 39;
         GET_OR_CREATE_SCHEMA_RESPONSE = 40;
 
+        ASSIGN_TOPIC = 41;
+        ASSIGN_TOPIC_RESPONSE = 42;
+
         // transaction related
         NEW_TXN = 50;
         NEW_TXN_RESPONSE = 51;
@@ -1101,6 +1115,9 @@ message BaseCommand {
     optional CommandGetOrCreateSchema getOrCreateSchema = 39;
     optional CommandGetOrCreateSchemaResponse getOrCreateSchemaResponse = 40;
 
+    optional CommandAssignTopic assignTopic                    = 41;
+    optional CommandAssignTopicResponse assignTopicResponse    = 42;
+
     // transaction related
     optional CommandNewTxn newTxn = 50;
     optional CommandNewTxnResponse newTxnResponse = 51;
@@ -1121,6 +1138,6 @@ message BaseCommand {
     optional CommandWatchTopicListSuccess watchTopicListSuccess = 65;
     optional CommandWatchTopicUpdate watchTopicUpdate = 66;
     optional CommandWatchTopicListClose watchTopicListClose = 67;
-    
+
     optional CommandTopicMigrated topicMigrated = 68;
 }

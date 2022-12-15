@@ -501,10 +501,14 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                         return null;
                     });
 
-                    CompletableFuture<Void> assignTopicFuture = service.getPulsar().isPulsarNgEnabled()
-                            && !service.getPulsar().getNamespaceService().skipSystemTopics(topicName)
-                            ? service.assignTopicAsync(topicName.toString())
-                            : CompletableFuture.completedFuture(null);
+                    CompletableFuture<Void> assignTopicFuture = CompletableFuture.completedFuture(null);
+
+                    /** Disable assign topic call on the broker and rely on discovery service. Keeping the code
+                     * commented out for reference **/
+                    //CompletableFuture<Void> assignTopicFuture = service.getPulsar().isPulsarNgEnabled()
+                    //        && !service.getPulsar().getNamespaceService().skipSystemTopics(topicName)
+                    //        ? service.assignTopicAsync(topicName.toString())
+                    //        : CompletableFuture.completedFuture(null);
 
                     assignTopicFuture.thenCompose(__ -> topicLookup.get());
                 } else {

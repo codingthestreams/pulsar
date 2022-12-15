@@ -25,6 +25,7 @@ import java.util.Set;
 
 import lombok.Data;
 import org.apache.pulsar.broker.authorization.PulsarAuthorizationProvider;
+import org.apache.pulsar.common.configuration.FieldContext;
 import org.apache.pulsar.common.configuration.PulsarConfiguration;
 import org.apache.pulsar.discovery.service.web.DiscoveryServiceServlet;
 
@@ -242,6 +243,12 @@ public class ServiceConfig implements PulsarConfiguration {
             value = "You can store string in key-value format"
     )
     private Properties properties = new Properties();
+
+    @ApiModelProperty(
+            name= "pulsarNgEnabled",
+            value = "Enables Pulsar NG. Defaults to false."
+    )
+    private boolean pulsarNgEnabled;
 
     public String getConfigurationStoreServers() {
         return null == configurationStoreServers ? getGlobalZookeeperServers() : configurationStoreServers;

@@ -59,6 +59,7 @@ import org.apache.pulsar.common.api.proto.CommandAddPartitionToTxn;
 import org.apache.pulsar.common.api.proto.CommandAddPartitionToTxnResponse;
 import org.apache.pulsar.common.api.proto.CommandAddSubscriptionToTxn;
 import org.apache.pulsar.common.api.proto.CommandAddSubscriptionToTxnResponse;
+import org.apache.pulsar.common.api.proto.CommandAssignTopicResponse;
 import org.apache.pulsar.common.api.proto.CommandAuthChallenge;
 import org.apache.pulsar.common.api.proto.CommandConnect;
 import org.apache.pulsar.common.api.proto.CommandConnected;
@@ -1565,6 +1566,30 @@ public class Commands {
         cmd.setWatchTopicListClose()
                 .setRequestId(requestId)
                 .setWatcherId(watcherId);
+        return cmd;
+    }
+
+    public static BaseCommand newAssignTopic(long requestId, String topic) {
+        BaseCommand cmd = localCmd(Type.ASSIGN_TOPIC);
+        cmd.setAssignTopic()
+                .setRequestId(requestId)
+                .setTopic(topic);
+        return cmd;
+    }
+
+    public static BaseCommand newAssignTopicResponse(long requestId, ServerError serverError, String errorMsg) {
+        BaseCommand cmd = localCmd(Type.ASSIGN_TOPIC_RESPONSE);
+
+        CommandAssignTopicResponse response = cmd.setAssignTopicResponse()
+                .setRequestId(requestId);
+
+        if (serverError != null) {
+            response.setError(serverError);
+        }
+
+        if (errorMsg != null) {
+            response.setMessage(errorMsg);
+        }
         return cmd;
     }
 
