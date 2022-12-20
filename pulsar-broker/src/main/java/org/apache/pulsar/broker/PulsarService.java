@@ -102,7 +102,7 @@ import org.apache.pulsar.broker.service.SystemTopicBasedTopicPoliciesService;
 import org.apache.pulsar.broker.service.Topic;
 import org.apache.pulsar.broker.service.TopicPoliciesService;
 import org.apache.pulsar.broker.service.TransactionBufferSnapshotServiceFactory;
-import org.apache.pulsar.broker.service.rsocket.RServer;
+import org.apache.pulsar.broker.service.rsocket.RSocketServer;
 import org.apache.pulsar.broker.service.schema.SchemaRegistryService;
 import org.apache.pulsar.broker.service.schema.SchemaStorageFactory;
 import org.apache.pulsar.broker.stats.MetricsGenerator;
@@ -281,7 +281,7 @@ public class PulsarService implements AutoCloseable, ShutdownService {
     private volatile CompletableFuture<Void> closeFuture;
     // key is listener name, value is pulsar address and pulsar ssl address
     private Map<String, AdvertisedListener> advertisedListeners;
-    private RServer server;
+    private RSocketServer server;
 
     public PulsarService(ServiceConfiguration config) {
         this(config, Optional.empty(), (exitCode) -> {
@@ -793,7 +793,8 @@ public class PulsarService implements AutoCloseable, ShutdownService {
             this.addWebServerHandlers(webService, metricsServlet, this.config);
             this.webService.start();
             if (isPulsarNgEnabled()) {
-                this.server = new RServer(this.brokerService);
+                this.server = new RSocketServer(this.brokerService);
+                this.server.start();
             }
 
             // Refresh addresses and update configuration, since the port might have been dynamically assigned

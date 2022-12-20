@@ -20,31 +20,28 @@ package org.apache.pulsar.broker.service.rsocket;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import io.rsocket.Payload;
-import io.rsocket.SocketAcceptor;
-import io.rsocket.core.RSocketServer;
-import io.rsocket.transport.netty.server.TcpServerTransport;
+import io.rsocket.RSocket;
 import io.rsocket.util.DefaultPayload;
 import org.apache.pulsar.broker.service.BrokerService;
 import org.apache.pulsar.common.api.proto.BaseCommand;
 import org.apache.pulsar.common.api.proto.CommandAssignTopic;
 import org.apache.pulsar.common.api.proto.ServerError;
 import org.apache.pulsar.common.protocol.Commands;
+import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 
-/**
- * Reacts to incoming rsocket requests and engages with connected clients over a bidirectional channel.
- */
-public class RServer {
+public class RSocketHandler implements RSocket {
+
     private final BrokerService service;
-    public RServer(BrokerService service) {
+    public RSocketHandler(BrokerService service) {
         this.service = service;
-        SocketAcceptor socketAcceptor =
-                SocketAcceptor.forRequestChannel(
-                        payloads ->
-                                Flux.from(payloads)
-                                        .map(this::unmarshalCommand)
-                                        .map(this::dispatchCommand));
-        RSocketServer.create(socketAcceptor).bindNow(TcpServerTransport.create("localhost", 7500));
+    }
+
+    @Override
+    public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+        return  Flux.from(payloads)
+                .map(this::unmarshalCommand)
+                .map(this::dispatchCommand);
     }
 
     protected BaseCommand handleAssignTopic(CommandAssignTopic assignTopic) {
@@ -53,7 +50,7 @@ public class RServer {
             this.service.assignTopicAsync(assignTopic.getTopic()).join();
         } catch (Exception ex) {
             return Commands.newAssignTopicResponse(assignTopic.getRequestId(), ServerError.UnknownError,
-                                    ex.getMessage());
+                    ex.getMessage());
         }
         return Commands.newAssignTopicResponse(assignTopic.getRequestId(), null, null);
     }
@@ -71,9 +68,8 @@ public class RServer {
                 checkArgument(cmd.hasAssignTopic());
                 return DefaultPayload.create(Commands.serializeWithSize(handleAssignTopic(cmd.getAssignTopic())));
             }
-            default ->
-                    throw new UnsupportedOperationException("Operation for command " + cmd.getType()
-                            + " is not supported");
+            default -> throw new UnsupportedOperationException("Operation for command " + cmd.getType()
+                    + " is not supported");
         }
-    };
+    }
 }

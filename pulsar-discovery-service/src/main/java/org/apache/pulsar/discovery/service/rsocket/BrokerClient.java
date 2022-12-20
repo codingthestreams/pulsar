@@ -18,20 +18,17 @@ package org.apache.pulsar.discovery.service.rsocket;
  * under the License.
  */
 
-import io.netty.handler.codec.protobuf.ProtobufDecoder;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.util.DefaultPayload;
-import java.time.Duration;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import org.apache.pulsar.common.api.proto.BaseCommand;
 import org.apache.pulsar.common.api.proto.CommandAssignTopicResponse;
 import org.apache.pulsar.common.protocol.Commands;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public class BrokerClient {
@@ -41,7 +38,9 @@ public class BrokerClient {
 
     public BrokerClient(Map<Long, CompletableFuture<Void>> topicAssignmentsFutures) {
         this.socket =
-                RSocketConnector.connectWith(TcpClientTransport.create("localhost", 7500)).block();
+                RSocketConnector.create()
+                        .setupPayload(DefaultPayload.create(UUID.randomUUID().toString()))
+                        .connect(TcpClientTransport.create("localhost", 7500)).block();
         this.topicAssignmentsFutures = topicAssignmentsFutures;
     }
 
