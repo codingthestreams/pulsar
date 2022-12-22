@@ -30,12 +30,10 @@ public class RSocketServer {
 
     private final BrokerService service;
     private final SocketAcceptor acceptor;
-    private final RSocket handler;
     private final ConcurrentHashMap<String, RSocket> clientConnections = new ConcurrentHashMap<>();
     public RSocketServer(BrokerService service) {
         this.service = service;
-        this.handler = new RSocketHandler(service);
-        this.acceptor = new RSocketAcceptor(handler, clientConnections);
+        this.acceptor = new RSocketAcceptor(service, clientConnections);
     }
 
     public void start() {

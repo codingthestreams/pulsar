@@ -20,6 +20,7 @@ package org.apache.pulsar.discovery.service.rsocket;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.SocketAcceptor;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.util.DefaultPayload;
@@ -39,6 +40,10 @@ public class BrokerClient {
     public BrokerClient(Map<Long, CompletableFuture<Void>> topicAssignmentsFutures) {
         this.socket =
                 RSocketConnector.create()
+                        .acceptor(SocketAcceptor.forFireAndForget(p-> {
+                            BaseCommand cmd = unmarshalCommand(p);
+                            handleCommand(cmd);
+                            return Mono.empty();}))
                         .setupPayload(DefaultPayload.create(UUID.randomUUID().toString()))
                         .connect(TcpClientTransport.create("localhost", 7500)).block();
         this.topicAssignmentsFutures = topicAssignmentsFutures;
@@ -46,9 +51,7 @@ public class BrokerClient {
 
     public void sendCommand(BaseCommand cmd) {
         socket
-                .requestChannel(Mono.just(DefaultPayload.create(Commands.serializeWithSize(cmd))))
-                .map(this::unmarshalCommand)
-                .doOnNext(this::handleCommand)
+                .fireAndForget(DefaultPayload.create(Commands.serializeWithSize(cmd)))
                 .subscribe();
     }
 

@@ -22,37 +22,59 @@ import static com.google.common.base.Preconditions.checkArgument;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.util.DefaultPayload;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import org.apache.pulsar.broker.service.BrokerService;
 import org.apache.pulsar.common.api.proto.BaseCommand;
 import org.apache.pulsar.common.api.proto.CommandAssignTopic;
 import org.apache.pulsar.common.api.proto.ServerError;
 import org.apache.pulsar.common.protocol.Commands;
-import org.reactivestreams.Publisher;
-import reactor.core.publisher.Flux;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Mono;
 
 public class RSocketHandler implements RSocket {
 
+    private static final Logger log = LoggerFactory.getLogger(RSocketHandler.class);
+
     private final BrokerService service;
-    public RSocketHandler(BrokerService service) {
+    private final String connectionId;
+    private final RSocket sendingSocket;
+    /**
+     * In-flight requests map: Request Id ==> Connection Id.
+     */
+    private final ConcurrentMap<Long, String> inFlightRequests;
+    public RSocketHandler(BrokerService service, String connectionId, RSocket sendingSocket) {
         this.service = service;
+        this.connectionId = connectionId;
+        this.sendingSocket = sendingSocket;
+        this.inFlightRequests = new ConcurrentHashMap<>();
     }
 
     @Override
-    public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-        return  Flux.from(payloads)
-                .map(this::unmarshalCommand)
-                .map(this::dispatchCommand);
+    public Mono<Void> fireAndForget(Payload payload) {
+        final BaseCommand cmd = unmarshalCommand(payload);
+        dispatchCommand(cmd);
+        return Mono.empty();
     }
 
-    protected BaseCommand handleAssignTopic(CommandAssignTopic assignTopic) {
-        // TODO: Figure out the how the future/flux can work together. For now, block on the future.
-        try {
-            this.service.assignTopicAsync(assignTopic.getTopic()).join();
-        } catch (Exception ex) {
-            return Commands.newAssignTopicResponse(assignTopic.getRequestId(), ServerError.UnknownError,
-                    ex.getMessage());
-        }
-        return Commands.newAssignTopicResponse(assignTopic.getRequestId(), null, null);
+    protected void handleAssignTopic(CommandAssignTopic assignTopic) {
+        //TODO: Switch to a non-blocking model by handling eventual consistency for assign topic workflow
+        this.inFlightRequests.put(assignTopic.getRequestId(), this.connectionId);
+        this.service.assignTopicAsync(assignTopic.getTopic()).whenComplete((__, ex) -> {
+            final BaseCommand cmd;
+            if (ex != null) {
+                cmd = Commands.newAssignTopicResponse(assignTopic.getRequestId(), ServerError.UnknownError,
+                        ex.getMessage());
+            } else {
+                cmd = Commands.newAssignTopicResponse(assignTopic.getRequestId(), null, null);
+            }
+
+            final Payload assignTopicResponse =
+                    DefaultPayload.create(Commands.serializeWithSize(cmd));
+            this.sendingSocket.fireAndForget(assignTopicResponse).subscribe(null,
+                    e -> log.error("failed to send fnf response to client {}", connectionId, e));
+        }).join();
     }
 
     protected BaseCommand unmarshalCommand(Payload payload) {
@@ -62,11 +84,11 @@ public class RSocketHandler implements RSocket {
         return cmd;
     }
 
-    protected Payload dispatchCommand(BaseCommand cmd) {
+    protected void dispatchCommand(BaseCommand cmd) {
         switch (cmd.getType()) {
             case ASSIGN_TOPIC -> {
                 checkArgument(cmd.hasAssignTopic());
-                return DefaultPayload.create(Commands.serializeWithSize(handleAssignTopic(cmd.getAssignTopic())));
+                handleAssignTopic(cmd.getAssignTopic());
             }
             default -> throw new UnsupportedOperationException("Operation for command " + cmd.getType()
                     + " is not supported");

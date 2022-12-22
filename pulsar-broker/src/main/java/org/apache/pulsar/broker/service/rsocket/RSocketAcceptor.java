@@ -22,16 +22,17 @@ import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
 import java.util.concurrent.ConcurrentMap;
+import org.apache.pulsar.broker.service.BrokerService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 
 public class RSocketAcceptor implements SocketAcceptor {
     private static final Logger log = LoggerFactory.getLogger(RSocketServer.class);
-    private final RSocket handler;
+    private final BrokerService service;
     private final ConcurrentMap<String, RSocket> clientConnections;
-    public RSocketAcceptor(RSocket handler, ConcurrentMap<String, RSocket> clientConnections) {
-        this.handler = handler;
+    public RSocketAcceptor(BrokerService service, ConcurrentMap<String, RSocket> clientConnections) {
+        this.service = service;
         this.clientConnections = clientConnections;
     }
 
@@ -43,7 +44,7 @@ public class RSocketAcceptor implements SocketAcceptor {
         if (this.clientConnections.compute(
                 id, (__, old) -> old == null || old.isDisposed() ? sendingSocket : old)
                 == sendingSocket) {
-            return  Mono.just(handler);
+            return  Mono.just(new RSocketHandler(service, id, sendingSocket));
         }
 
         return Mono.error(
